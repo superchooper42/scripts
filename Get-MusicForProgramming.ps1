@@ -1,7 +1,7 @@
 #Created by Cary Hooper
 #2018-06-2018
+#Downloads all musicforprogramming mixes from http://www.musicforprogramming.net
 #Because I was too lazy to click download 51 times
-#http://www.musicforprogramming.net
 
 #Change This
 $outputFolder = "C:\Users\Cary\Music"
