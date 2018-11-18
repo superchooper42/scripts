@@ -1,6 +1,8 @@
 #!/usr/bin/python3
 #bin2perl created to assist with OSCE payload standardization.
 #Cary Hooper 17NOV18
+#For use with:
+#msfvenom -p windows/exec CMD=calc -f raw > /path/to/file.bin
 
 import binascii
 import sys
