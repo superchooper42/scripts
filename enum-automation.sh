@@ -15,12 +15,12 @@ target=$1
 #Todo - more graceful check of whether the dir exists.
 mkdir nmap > /dev/null 2>&1
 #Do the nmap scan
-nmap -p- -oA nmap/$target -Pn -T5 -sV -v0 $target > /dev/null 2>&1
+nmap -p80,443 -oA nmap/$target -Pn -T5 -sV -v0 $target > /dev/null 2>&1
 
 #----------------------------------------------------------------------
 #Check for http(s)
 httpPorts=()
-count=$(cat nmap/$target.nmap | egrep " http | https " | wc -l)
+count=$(cat nmap/$target.nmap | egrep " http | https " | grep -v "incorrect results at " | wc -l)
 if [ $count -ne 0 ]
 then
 	httpflag=1
@@ -41,10 +41,10 @@ fi
 #using ( ) subshell notation to suppress output
 for port in ${httpPorts[@]}; do 
 	#Nikto
-	echo "[*] Starting nikto against port $port"
+	echo -e "\t[*] Starting nikto against port $port"
 	( nikto -h http://$target:$port -o nikto.$port.txt > /dev/null 2>&1 & )
 	#Dirbuster
-	echo "[*] Starting dirb against port $port"
+	echo -e "\t[*] Starting dirb against port $port"
 	( dirb http://$target:$port -o dirb.$port.txt > /dev/null 2>&1 & )
 done
 #----------------------------------------------------------------------
@@ -64,7 +64,7 @@ then
 	done <<< "$query"
 else
 	ftpflag=0
-	echo ftpflag is $ftpflag
+	#echo ftpflag is $ftpflag
 fi
 #Do ftp enumeration things
 #Test for anonymous logon and anonymous write
@@ -88,14 +88,14 @@ rm ftptest.txt
 
 
 
-echo "\n\n Program Complete \n\n"
+echo -e '\n\nProgram Complete\n'
 
 #Iterate over newline-separated variable
-	while read -r line; do
-		echo "... $line ..."
-	done <<< "$query"
+# 	while read -r line; do
+# 		echo "... $line ..."
+# 	done <<< "$query"
 
-#Iterate over array
-		for i in ${httpPorts[@]}; do 
-			echo $i;
-		done
+# #Iterate over array
+# 		for i in ${httpPorts[@]}; do 
+# 			echo $i;
+# 		done
