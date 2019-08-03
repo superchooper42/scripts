@@ -2,7 +2,7 @@
 
 #Inputs argument as hostname or IP
 #Automating routine enumeration tasks.
-echo Initial Host enumeration script
+echo Initial Host Enumeration Script
 echo by Cary Hooper @nopantrootdance
 
 if [ $# != 1 ]
@@ -15,23 +15,23 @@ target=$1
 #Todo - more graceful check of whether the dir exists.
 mkdir nmap > /dev/null 2>&1
 #Do the nmap scan
-nmap -p80,443 -oA nmap/$target -Pn -T5 -sV -v0 $target > /dev/null 2>&1
+nmap -p- -oA nmap/$target -Pn -T5 -sV -v0 $target > /dev/null 2>&1
 
 #----------------------------------------------------------------------
 #Check for http(s)
 httpPorts=()
-count=$(cat nmap/$target.nmap | egrep " http | https " | grep -v "incorrect results at " | wc -l)
+count=$(cat nmap/$target.nmap | egrep " http | ssl/http | https " | grep -v "incorrect results at " | wc -l)
 if [ $count -ne 0 ]
 then
 	httpflag=1
 	echo "[!] Detected HTTP/HTTPS"
-	query=$(cat nmap/$target.nmap | egrep " http | https " )
+	query=$(cat nmap/$target.nmap | egrep " http | ssl/http | https " | grep -v "incorrect results at ")
 	while read -r line; do
 		port=$(echo -n "$line" | cut -d '/' -f1)
 		echo "[!] Port $port is a web service"
 		httpPorts+=("$port")
 
-	done <<< "$query"
+	done <<< $(echo "$query")
 else
 	httpflag=0
 	echo httpflag is $httpflag
@@ -42,10 +42,10 @@ fi
 for port in ${httpPorts[@]}; do 
 	#Nikto
 	echo -e "\t[*] Starting nikto against port $port"
-	( nikto -h http://$target:$port -o nikto.$port.txt > /dev/null 2>&1 & )
+	( nikto -h http://$target:$port -o nikto.$target.$port.txt > /dev/null 2>&1 & )
 	#Dirbuster
 	echo -e "\t[*] Starting dirb against port $port"
-	( dirb http://$target:$port -o dirb.$port.txt > /dev/null 2>&1 & )
+	( dirb http://$target:$port -o dirb.$target.$port.txt > /dev/null 2>&1 & )
 done
 #----------------------------------------------------------------------
 #Check for ftp
@@ -86,7 +86,8 @@ rm ftptest.txt
 #----------------------------------------------------------------------
 
 
-
+#Examine https certificate
+#echo | openssl s_client -showcerts -servername 192.168.0.116 -connect 192.168.0.116:443 2>/dev/null | openssl x509 -inform pem -noout -text
 
 echo -e '\n\nProgram Complete\n'
 
