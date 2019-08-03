@@ -4,6 +4,16 @@
 #Automating routine enumeration tasks.
 echo Initial Host Enumeration Script
 echo by Cary Hooper @nopantrootdance
+#TODO
+#echo all open ports with nmap sV service detection
+#can we extract hostname from nmap scan? 
+#support for openSSL certificate parsing
+#smb checks... 1) enumerate with enum4linux 2) check for anonymous read 2) check for anonymous write
+#smtp checks - is login allowed? can we VRFY users?
+#UDP nmap scan... at least top 5 UDP services
+#tftp checks - any files available to download?  can we write files?
+#snmp checks - 1) brute top 5-10 community strings... if found, do snmpwalk.
+#dns checks (TCP and UDP) - zone transfer, name lookups to find hostname.
 
 if [ $# != 1 ]
 then
