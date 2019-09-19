@@ -25,6 +25,7 @@ target=$1
 #Todo - more graceful check of whether the dir exists.
 mkdir nmap > /dev/null 2>&1
 #Do the nmap scan
+echo -e "\t[*] Beginning nmap scan of target."
 nmap -p- -oA nmap/$target -Pn -T5 -sV -v0 $target > /dev/null 2>&1
 
 #----------------------------------------------------------------------
@@ -99,7 +100,7 @@ rm ftptest.txt
 #Examine https certificate
 #echo | openssl s_client -showcerts -servername 192.168.0.116 -connect 192.168.0.116:443 2>/dev/null | openssl x509 -inform pem -noout -text
 
-echo -e '\n\nProgram Complete\n'
+echo -e '\nProgram Complete\n'
 
 #Iterate over newline-separated variable
 # 	while read -r line; do
