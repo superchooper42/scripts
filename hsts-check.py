@@ -42,6 +42,7 @@ def makeRequest(domainstring):
 		domainstring = "http://" + domainstring
 	log("Requesting " + domainstring)
 	try:
+		#Desperately need graceful error handling
 		request = requests.get(domainstring,verify=False,timeout=5,allow_redirects=False)
 	except Exception as e:
 		log(f"An exception occurred for {domainstring}... {e}")
@@ -51,20 +52,23 @@ def makeRequest(domainstring):
 def doFlow(domain):
 	#This function is the main() for each domain flow. 
 	#How do we want to store the response object?
-	resultstring = ""
+	nextURL = ""
 	request = makeRequest(domain)
+	if request == False:
+		return request
 	request = checkRedirect(request)
 	request = checkHSTS(request)
 	if "Location" in request.headers:
 		nextURL = request.headers["Location"]
+		log(f"nextURL is {nextURL} .. of type {type(nextURL)}")
 
 	#DEBUG
 	#request.a.wasRedirected == True|False
 	#request.a.HSTS == <str>|False
 
 	#Do loop until site stops redirecting
-	print(f"nextURL is {nextURL} .. of type {type(nextURL)}")
-	while(request.a.wasRedirected == True):
+	
+	while(request.a.wasRedirected == True and "http" in nextURL):
 		request = makeRequest(nextURL)
 		request = checkRedirect(request)
 		request = checkHSTS(request)
@@ -76,12 +80,14 @@ def doFlow(domain):
 def main():
 	# pool = Pool(pool_size)
 	#Open CSV file. File contains list of top X domains to scan.
-	csvfile = open('C:\\Temp\\majestic_ten.csv','r')
+	csvfile = open('C:\\Temp\\majestic_hundred.csv','r')
 	csvreader = csv.reader(csvfile)
 	for row in csvreader:
 		target = row[2]
 		request = doFlow(target)
-
+		if request == False:
+			print(f"Domain unavailable or redirect broken! - {target}")
+			continue
 		#Is the site misconfigured?
 		#Case A - first redirect doesn't redirect from http to https
 		#Case B - site doesn't return HSTS for https site.
@@ -89,6 +95,7 @@ def main():
 		#Case D - no preload is set
 		#Case E - preload is set but includeSubdomains 
 		#Case F - domain is in preload list but no preload directive is given
+		#Case G - site responds HSTS for http
 
 
 
