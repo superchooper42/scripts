@@ -1,4 +1,4 @@
-import requests,csv,re,warnings
+import requests,csv,re,warnings,sys,json
 #from multiprocessing.pool import ThreadPool as Pool
 from datetime import datetime,timedelta
 warnings.filterwarnings("ignore")
@@ -10,134 +10,207 @@ def log(s):
 	if DEBUG:
 		print(s)
 
-#Note to self: all HTTP headers are case insensitive - https://tools.ietf.org/html/rfc7230#section-3.2
+class requestHSTS:
+	"""Class to make HTTP requests, follow redirects, and interpret HSTS.  A domain is required to instantiate."""
+	#Attributes:
+	# 'URL':	[<str>],
+	# 'HSTS':	[False|<str>]
+	# 'reqCount': <int>
+	def __init__(self):
+		self.URL = []
+		self.HSTS = []
+		self.reqCount = 0	#incremented after every request is made
 
-def checkHSTS(request):
-	#Checks for presence of HSTS header.  If header exists, return the header.
-	log(f"Checking for HSTS headers.")
-	if hasattr(request.a,'HSTStracker'):
-		log(f"HSTStracker already set.")
-	else:
-		log(f"Setting HSTStracker for the first time")
-		setattr(request.a,'HSTStracker',[])
-	hstsvariants = ['strict-transport-security','Strict-Transport-Security']
-	for hsts in hstsvariants:
-		if hsts in request.headers:
-			setattr(request.a, 'HSTS', request.headers[hsts])
-			log("\t HSTS is set: " + request.a.HSTS)
-			print(f"Found HSTS for {request.url}: {request.a.HSTS}")
-			HSTSdict = dict.fromkeys(['Redirect','HSTS'])
-			HSTSdict['URL'] = request.url
-			HSTSdict['HSTS'] = request.headers[hsts]
-			setattr(request.a, 'HSTStracker', request.a.HSTStracker.append(HSTSdict))
-			log(f"HSTS tracker is {request.a.HSTStracker}")
-			return request
+	def checkHSTS(self):
+		#Checks for presence of HSTS header.
+		log(f"Checking for HSTS headers...")
+		hsts = 'Strict-Transport-Security'
+		if hsts not in self.request.headers:
+			self.HSTS.append(False)
 		else:
-			setattr(request.a, 'HSTS', False)
-		# try:
-		# 	log(f"HSTS tracker is {request.a.HSTStracker}")
-		# 	#setattr(request.a, 'HSTStracker', request.a.HSTStracker.append({"Redirect": request.a.lastRedirect,"HSTS": request.headers[hsts]}))
-		# 	log(request.__dict__)
-		# 	log(request.a.__dict__)
-		# 	log(f"HSTS tracker is {request.a.HSTStracker}")
-		# except Exception as e:
-		# 	log(f"HSTS Exception: {e}")
-	return request
+			headercontent = self.request.headers[hsts]
+			log(f"Header found - {hsts}:{headercontent}")
+			self.HSTS.append(headercontent)
 
-def checkRedirect(request):
-	#check if a redirect occurred
-	log(f"Checking redirect...")
-	if request.status_code >= 300 and request.status_code < 400:
-		log("\t Redirect detected... Location: (" + str(request.status_code) + ") " + request.headers["Location"])
-		request.a = lambda: None
-		setattr(request.a, 'lastRedirect', request.headers["Location"])
-		setattr(request.a, 'wasRedirected', True)
-	else:
-		request.a = lambda: None
-		setattr(request.a, 'wasRedirected', False)	
-	#Redirect? return response object
-	return request
+	def makeRequest(self):
+		#Make the request
+		headers = {'User-Agent':'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:72.0) Gecko/20100101 Firefox/72.0'}
+		log(f"Making request to {self.URL[self.reqCount]}")
+		self.request = requests.get(self.URL[self.reqCount],verify=False,timeout=5,allow_redirects=False,headers=headers)
+		self.reqCount += 1
+		log(f"{self.reqCount} request(s) have been made.")
+		#First check the response for HSTS header
+		try:
+			self.checkHSTS()
+		except Exception as e:
+			print(f"Error with checkHSTS({self.URL[self.reqCount - 1]}) - {e}")
+		#Next, see if the site redirected
+		try:
+			self.checkRedirect()
+		except Exception as e:
+			print(f"Error with checkRedirect({self.URL[self.reqCount - 1]}) - {e}")	
+		#Collect all the things!
 
-def makeRequest(domainstring,first=False):
-	#Make request and instantiate object
-	#If only a domain is supplied, add "http://"
-	if "http" not in domainstring: #includes https!
-		domainstring = "http://" + domainstring
-	log("Requesting " + domainstring)
-	try:
-		request = requests.get(domainstring,verify=False,timeout=5,allow_redirects=False)
-		if first == True:
-			log(f"\tThis is the first request for {domainstring}")
-	except Exception as e:
-		log(f"An exception occurred for {domainstring}... {e}")
-		return False
-	return request
+	def checkRedirect(self):
+		#check if a redirect occurred
+		nextURL = False
+		log(f"Checking redirect...")
+		for loc in ['Location','location']:
+			if loc in self.request.headers:
+				nextURL = self.request.headers[loc]
+		#If nextURL exists, that means a redirect occurred... this guarantees another round.
+		if nextURL:
+			if "http" in nextURL:
+				log(f"\t Redirect detected... Location: ({str(self.request.status_code)}) - {nextURL}")
+				self.URL.append(nextURL)
+				try:
+					#Recursive duh
+					self.makeRequest()
+				except Exception as e:
+					print(f"Error with makeRequest({self.URL[self.reqCount]}) - {e}")	
+		else:
+			log(f"No redirect found... ending chain.")
 
-def doFlow(domain):
-	#This function is the main() for each domain flow. 
-	#How do we want to store the response object?
-	log(f"Doing flow for {domain}")
-	nextURL = ""
-	request = makeRequest(domain,True)
-	if request == False:
-		return request
-	request = checkRedirect(request)
-	request = checkHSTS(request)
-	if request.a.wasRedirected == True:
-		log(f"Next URL is {request.a.lastRedirect}")
+	def printResults(self):
+		print(f"Results:\n\t{self.HSTS}\n\t{self.URL}\n\t{self.reqCount}")
+		resultarray = [self.URL,self.HSTS]
+		return resultarray
+	#Note to self: all HTTP headers are case insensitive - https://tools.ietf.org/html/rfc7230#section-3.2
 
-	#DEBUG
-	#request.a.wasRedirected == True|False
-	#request.a.HSTS == <str>|False
 
-	#Do loop until site stops redirecting
-	
-	while((request.a.wasRedirected == True) and ("http" in request.a.lastRedirect) and (request.a.lastRedirect != request.url)): 
-	#Checks for presence of "http" too in case of a relative redirect
-		request = makeRequest(request.a.lastRedirect)
-		request = checkRedirect(request)
-		request = checkHSTS(request)
-	log(f"Flow completed for {domain}.  \n{request.a.HSTStracker}")
-	return request
+def doRequests(target):
+	print(f"\n\nTesting {target}\n\n")
+	masterresults[target] = {}
+	for protocol in ['http','https']:
+		try:
+			r = requestHSTS()
+			url = protocol+ "://" + target
+			r.URL.append(url)
+			r.makeRequest()
+			r.printResults()
+			masterresults[target]['URL'] = r.URL
+			masterresults[target]['HSTS'] = r.HSTS
+		except Exception as e:
+			log(f"An exception occurred while processing {target}: {e}")
+			errorresults.append(target)
+
 
 def main():
 	# Open CSV file. File contains list of top X domains to scan.
 	csvfile = open('C:\\Temp\\majestic_ten.csv','r')
 	csvreader = csv.reader(csvfile)
-	brokensites=[]
+	masterresults = {}#{'target.com':{'URL':[],'HSTS':[]}}
+	global masterresults
+	errorresults = [] #Need to separate errors for http vs https.
+	global errorresults
+	# This stub makes all the requests and gathers the information
 	for row in csvreader:
 		target = row[2]
-		try:
-			request = doFlow(target)
-		except Exception as e:
-			print(f"Domain unavailable or redirect broken! - {target}")
-			log(f"An exception occurred: {e}")
-			brokensites.append(target)
-			continue
-		print(f"Original domain: {target}. Last Domain: {request.url}. HSTS: {request.a.HSTS}")
+		doRequests(target)
+
+	#Do things with results... mainly save them in JSON format for further processing		
+	print(f"Results: {masterresults}")
+	output = json.dumps(masterresults)
+	jsonfile = open('C:\\Temp\\results.json','w')
+	jsonfile.write(output)
+	print(f"An error occurred with the following sites: {errorresults}")
+	#20s for 10 sites
+	#200s for 100 sites (2s/sites)
+	#2000000s = 33,333 minutes = 555hrs = 23.14d
+
+	vulns = {
+		'No HSTS':[],
+		'HTTPredirectstoHTTP':[],
+		'HTTPreturnsHSTS':[],
+		'preloadButNoIncludeSubDomains':[],
+		'perfectHSTS':[],
+		'badHSTSRedirect':[]
+
+	}
+	#stats
+	countHTTP = 0
+	countHTTPS = 0
+	preload = 0
+	eventualHSTSCount = 0  #HSTS on something in the chain.
+
+	for site in masterresults:
+		#{'target.com':{'URL':[url1,url2],'HSTS':[false,HSTSheader]}}
+		eventualHSTS = False
+		#Search all URLs for HSTS header
+		for i in range(0,len(masterresults[site]['URL'])):
+			#CHECKS IF HTTPS
+			if 'https' in masterresults[site]['URL'][i]:
+				countHTTPS += 1
+				#CHECKS FOR NO HSTS (HSTS = false)
+				if masterresults[site]['HSTS'][i] == False:
+					log(f"Vuln Found. {masterresults[site]['URL'][i]} returns HSTS of {masterresults[site]['HSTS'][i]} ")
+					vulns['No HSTS'].append(masterresults[site]['URL'][i])
+				#HSTS = true
+				else:
+					eventualHSTS = True
+					hstsparts = masterresults[site]['HSTS'][i].split(';')
+					for part in hstsparts:
+						part = part.rstrip().lstrip().lower()
+
+						if "preload" in part:
+							preload += 1
+							#Preload without includeSubdomains
+							if "include" not in masterresults[site]['HSTS'][i]:
+								log(f"Misconfig Found. {masterresults[site]['URL'][i]} returns preload with no includeSubdomains ")
+								vulns['preloadButNoIncludeSubDomains'].append(masterresults[site]['URL'][i])
+						#Case E - max-age directive is super low < 2592000
+						if "max-age" in part:
+							age = part.split('=')[1]
+							if int(age) < 2592000:
+								log(f"Misconfig Found. max-age directive is less than 30 days: max-age={age}  ")
+								vulns['preloadButNoIncludeSubDomains'].append(masterresults[site]['URL'][i])
+
+			#HTTP
+			else:
+				countHTTP = 0
+				if masterresults[site]['HSTS'][i] != False:
+					log(f"Misconfig Found. {masterresults[site]['URL'][i]} returns HSTS of {masterresults[site]['HSTS'][i]} ")
+				#Check for (near) perfect handling of HSTS
+				#redirect HTTP --> HTTPS --> HSTS
+				#Check if we have enough redirects
+				if len(masterresults[site]['URL']) > i+1:
+					#Check if domains are same
+					if masterresults[site]['URL'][i].split(":")[1] == masterresults[site]['URL'][i+1].split(":")[1]:
+						#Check HSTS in 2nd
+						if masterresults[site]['HSTS'][i+1] != False:
+							print(f"Perfect HSTS for {site}!")
+							vulns['perfectHSTS'].append(site)
+					else:
+						log(f"Domains not equal... {masterresults[site]['URL'][i].split(":")[1]} VS {masterresults[site]['URL'][i+1].split(":")[1]}")
+						#Check if first is a subdomain of the second.
+						if masterresults[site]['URL'][i].split(":")[1] in masterresults[site]['URL'][i+1].split(":")[1]:
+							#Check for includeSubdomains
+							hstsparts = masterresults[site]['HSTS'][i+1].split(";")
+							includesubs = False
+							for part in hstsparts:
+								if "includesubdomains" in part.lower():
+									includesubs = True
+							if includesubs:
+								print(f"Wow, HSTS actually handled correctly.  Near perfect HSTS for {site}")
+								vulns['perfectHSTS'].append(site)
+							else:
+								log(f"Vuln Found. {masterresults[site]['URL'][i]} redirects to different domain.")
+								vulns['badHSTSRedirect'].append(masterresults[site]['URL'][i])
+
+						#Not a subdomain... misconfigured.	
+						else:
+							log(f"Vuln Found. {masterresults[site]['URL'][i]} redirects to different domain.")
+							vulns['badHSTSRedirect'].append(masterresults[site]['URL'][i])
+
+		if eventualHSTS:
+			eventualHSTSCount += 1
 
 
-		#Is the site misconfigured? Check if HSTS is implemented, if it is implemented correctly, or if HSTS is eventually used
-		#Case A - check for HSTS header in first http response
-			#Need variable for first HSTS header
-		#Case B - check if site redirects from http to https (does HSTS properly)
-			#Need variable for first redirect URL
-		#Case C - site doesn't return HSTS for https site. (not implemented)
-			#For this, I think I need an array of dicts.  
-			#request.a.hststracker = [{"redirect":<url>,"HSTS":<hsts>|False},...]
-			#Allows us to do analysis later
-		#Case D - site redirects to different subdomain (HSTS improperly implemented)
-			#Compare first redirect URL to domain // no variable necessary
 
-		#HSTS Analysis
-		#Case E - max-age directive is super low < 14 days
-		#Case F - no preload is set
-		#Case G - preload is set but includeSubdomains 
+
+
 		#Case H - domain is in preload list but no preload directive is given
 		
-
-
-
 	#Benchmarking for testing purposes
 	end_time = datetime.now()
 	diff = end_time - initial_time
