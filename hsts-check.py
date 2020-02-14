@@ -71,8 +71,8 @@ class requestHSTS:
 		else:
 			log(f"No redirect found... ending chain.")
 
-	def printResults(self):
-		print(f"Results:\n\t{self.HSTS}\n\t{self.URL}\n\t{self.reqCount}")
+	def printResults(self,protocol):
+		print(f"Results for {protocol}:\n\t{self.HSTS}\n\t{self.URL}\n\t{self.reqCount}")
 		resultarray = [self.URL,self.HSTS]
 		return resultarray
 	#Note to self: all HTTP headers are case insensitive - https://tools.ietf.org/html/rfc7230#section-3.2
@@ -87,26 +87,50 @@ def doRequests(target):
 			url = protocol+ "://" + target
 			r.URL.append(url)
 			r.makeRequest()
-			r.printResults()
+			r.printResults(protocol=protocol)
 			masterresults[target]['URL'] = r.URL
 			masterresults[target]['HSTS'] = r.HSTS
 		except Exception as e:
 			log(f"An exception occurred while processing {target}: {e}")
 			errorresults.append(target)
 
+def checkPreload(preloadDict,domain):
+	entries = preloadDict['entries']
+	#check both the domain and its top
+	domain = domain.split(":")[1]
+	preload = False
+
+	while "." in domain:
+		for entry in entries:
+			#Note: each entry is its own dict.  We're interested in entry["name"] and entry["mode"]
+			if domain == entry["name"]:
+				preload = True
+		domain = domain.split('.')[1:]
+	return preload
+
+
 
 def main():
 	# Open CSV file. File contains list of top X domains to scan.
-	csvfile = open('C:\\Temp\\majestic_ten.csv','r')
+	# three,ten,hundred,1k,10k,100k,million
+	csvfile = open('C:\\Temp\\majestic_hundred.csv','r')
 	csvreader = csv.reader(csvfile)
-	masterresults = {}#{'target.com':{'URL':[],'HSTS':[]}}
+	
+	#open JSON preload file
+	jsonfile = open('C:\\Temp\\hstspreload.json','r')
+	jsonString = jsonfile.read()
+	preloadDict = json.loads(jsonString)[0]
+
 	global masterresults
-	errorresults = [] #Need to separate errors for http vs https.
 	global errorresults
+	masterresults = {}#{'target.com':{'URL':[],'HSTS':[]}}
+	errorresults = [] #Need to separate errors for http vs https.
+	
 	# This stub makes all the requests and gathers the information
 	for row in csvreader:
-		target = row[2]
-		doRequests(target)
+		if row[2] != "Domain":
+			target = row[2]
+			doRequests(target)
 
 	#Do things with results... mainly save them in JSON format for further processing		
 	print(f"Results: {masterresults}")
@@ -123,6 +147,7 @@ def main():
 		'HTTPredirectstoHTTP':[],
 		'HTTPreturnsHSTS':[],
 		'preloadButNoIncludeSubDomains':[],
+		'preloadButNotPreloaded':[],
 		'perfectHSTS':[],
 		'badHSTSRedirect':[]
 
@@ -137,13 +162,14 @@ def main():
 		#{'target.com':{'URL':[url1,url2],'HSTS':[false,HSTSheader]}}
 		eventualHSTS = False
 		#Search all URLs for HSTS header
+		print(masterresults[site]['URL'])
 		for i in range(0,len(masterresults[site]['URL'])):
 			#CHECKS IF HTTPS
 			if 'https' in masterresults[site]['URL'][i]:
 				countHTTPS += 1
 				#CHECKS FOR NO HSTS (HSTS = false)
 				if masterresults[site]['HSTS'][i] == False:
-					log(f"Vuln Found. {masterresults[site]['URL'][i]} returns HSTS of {masterresults[site]['HSTS'][i]} ")
+					log(f"[!] Vuln Found. {masterresults[site]['URL'][i]} returns HSTS of {masterresults[site]['HSTS'][i]} ")
 					vulns['No HSTS'].append(masterresults[site]['URL'][i])
 				#HSTS = true
 				else:
@@ -153,23 +179,30 @@ def main():
 						part = part.rstrip().lstrip().lower()
 
 						if "preload" in part:
-							preload += 1
-							#Preload without includeSubdomains
-							if "include" not in masterresults[site]['HSTS'][i]:
-								log(f"Misconfig Found. {masterresults[site]['URL'][i]} returns preload with no includeSubdomains ")
-								vulns['preloadButNoIncludeSubDomains'].append(masterresults[site]['URL'][i])
+							#If it claims preload, we check if it or subdomains are in official preload list
+							if checkPreload(preloadDict,domain=masterresults[site]['URL'][i]):
+								#Preload without includeSubdomains
+								if "include" not in masterresults[site]['HSTS'][i]:
+									log(f"[!] Misconfig Found. {masterresults[site]['URL'][i]} returns preload with no includeSubdomains ")
+									vulns['preloadButNoIncludeSubDomains'].append(masterresults[site]['URL'][i])
+								#Story checks out.  Site claims preload and is in preload list
+								else:
+									preload += 1
+							else:
+								log(f"[!] Misconfig Found. {masterresults[site]['URL'][i]} returns preload but is not preloaded.")
+								vulns['preloadButNotPreloaded'].append(masterresults[site]['URL'][i])
 						#Case E - max-age directive is super low < 2592000
 						if "max-age" in part:
 							age = part.split('=')[1]
 							if int(age) < 2592000:
-								log(f"Misconfig Found. max-age directive is less than 30 days: max-age={age}  ")
+								log(f"[!] Misconfig Found. max-age directive is less than 30 days: max-age={age}  ")
 								vulns['preloadButNoIncludeSubDomains'].append(masterresults[site]['URL'][i])
 
 			#HTTP
 			else:
 				countHTTP = 0
 				if masterresults[site]['HSTS'][i] != False:
-					log(f"Misconfig Found. {masterresults[site]['URL'][i]} returns HSTS of {masterresults[site]['HSTS'][i]} ")
+					log(f"[!] Misconfig Found. {masterresults[site]['URL'][i]} returns HSTS of {masterresults[site]['HSTS'][i]} ")
 				#Check for (near) perfect handling of HSTS
 				#redirect HTTP --> HTTPS --> HSTS
 				#Check if we have enough redirects
@@ -178,12 +211,14 @@ def main():
 					if masterresults[site]['URL'][i].split(":")[1] == masterresults[site]['URL'][i+1].split(":")[1]:
 						#Check HSTS in 2nd
 						if masterresults[site]['HSTS'][i+1] != False:
-							print(f"Perfect HSTS for {site}!")
+							print(f"[!] Perfect HSTS for {site}!")
 							vulns['perfectHSTS'].append(site)
 					else:
-						log(f"Domains not equal... {masterresults[site]['URL'][i].split(":")[1]} VS {masterresults[site]['URL'][i+1].split(":")[1]}")
+						firstdom = masterresults[site]['URL'][i].split(':')[1]
+						nextdom = masterresults[site]['URL'][i+1].split(':')[1]
+						log(f"Domains not equal... {firstdom} VS {nextdom}")
 						#Check if first is a subdomain of the second.
-						if masterresults[site]['URL'][i].split(":")[1] in masterresults[site]['URL'][i+1].split(":")[1]:
+						if firstdom in nextdom:
 							#Check for includeSubdomains
 							hstsparts = masterresults[site]['HSTS'][i+1].split(";")
 							includesubs = False
@@ -191,21 +226,22 @@ def main():
 								if "includesubdomains" in part.lower():
 									includesubs = True
 							if includesubs:
-								print(f"Wow, HSTS actually handled correctly.  Near perfect HSTS for {site}")
+								print(f"[!] Wow, HSTS actually handled correctly.  Near perfect HSTS for {site}")
 								vulns['perfectHSTS'].append(site)
 							else:
-								log(f"Vuln Found. {masterresults[site]['URL'][i]} redirects to different domain.")
+								log(f"[!] Vuln Found. {masterresults[site]['URL'][i]} redirects to different domain.")
 								vulns['badHSTSRedirect'].append(masterresults[site]['URL'][i])
 
 						#Not a subdomain... misconfigured.	
 						else:
-							log(f"Vuln Found. {masterresults[site]['URL'][i]} redirects to different domain.")
+							log(f"[!] Vuln Found. {masterresults[site]['URL'][i]} redirects to different domain.")
 							vulns['badHSTSRedirect'].append(masterresults[site]['URL'][i])
 
 		if eventualHSTS:
 			eventualHSTSCount += 1
 
-
+	for vuln in vulns:
+		print(f"{vuln}: {vulns[vuln]}")
 
 
 
