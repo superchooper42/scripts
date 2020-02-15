@@ -72,14 +72,14 @@ class requestHSTS:
 			log(f"No redirect found... ending chain.")
 
 	def printResults(self,protocol):
-		print(f"Results for {protocol}:\n\t{self.HSTS}\n\t{self.URL}\n\t{self.reqCount}")
+		log(f"Results for {protocol}:\n\t{self.HSTS}\n\t{self.URL}")
 		resultarray = [self.URL,self.HSTS]
 		return resultarray
 	#Note to self: all HTTP headers are case insensitive - https://tools.ietf.org/html/rfc7230#section-3.2
 
 
 def doRequests(target):
-	print(f"\n\nTesting {target}\n\n")
+	print(f"\nTesting {target}\n")
 	masterresults[target] = {}
 	for protocol in ['http','https']:
 		try:
@@ -92,7 +92,8 @@ def doRequests(target):
 			masterresults[target]['HSTS'] = r.HSTS
 		except Exception as e:
 			log(f"An exception occurred while processing {target}: {e}")
-			errorresults.append(target)
+			if target not in errorresults:
+				errorresults.append(target)
 
 def checkPreload(preloadDict,domain):
 	entries = preloadDict['entries']
@@ -108,7 +109,11 @@ def checkPreload(preloadDict,domain):
 		domain = domain.split('.')[1:]
 	return preload
 
-
+def printVulns(vulns):
+	for vuln in vulns:
+		print(f"Vuln: {vuln}")
+		for host in vulns[vuln]:
+			print(f"\t{host}")
 
 def main():
 	# Open CSV file. File contains list of top X domains to scan.
@@ -117,9 +122,9 @@ def main():
 	csvreader = csv.reader(csvfile)
 	
 	#open JSON preload file
-	jsonfile = open('C:\\Temp\\hstspreload.json','r')
-	jsonString = jsonfile.read()
-	preloadDict = json.loads(jsonString)[0]
+	# jsonfile = open('C:\\Temp\\hstspreload.json','r')
+	# jsonString = jsonfile.read()
+	# preloadDict = json.loads(jsonString)[0]
 
 	global masterresults
 	global errorresults
@@ -137,7 +142,9 @@ def main():
 	output = json.dumps(masterresults)
 	jsonfile = open('C:\\Temp\\results.json','w')
 	jsonfile.write(output)
-	print(f"An error occurred with the following sites: {errorresults}")
+	
+	if len(errorresults) > 0:
+		print(f"An error occurred with the following sites: {errorresults}")
 	#20s for 10 sites
 	#200s for 100 sites (2s/sites)
 	#2000000s = 33,333 minutes = 555hrs = 23.14d
@@ -149,8 +156,8 @@ def main():
 		'preloadButNoIncludeSubDomains':[],
 		'preloadButNotPreloaded':[],
 		'perfectHSTS':[],
-		'badHSTSRedirect':[]
-
+		'badHSTSRedirect':[],
+		'maxAgeTooSmall':[]
 	}
 	#stats
 	countHTTP = 0
@@ -158,11 +165,15 @@ def main():
 	preload = 0
 	eventualHSTSCount = 0  #HSTS on something in the chain.
 
+	#Actual logic for parsing through results.
 	for site in masterresults:
 		#{'target.com':{'URL':[url1,url2],'HSTS':[false,HSTSheader]}}
 		eventualHSTS = False
 		#Search all URLs for HSTS header
-		print(masterresults[site]['URL'])
+		if site in errorresults:
+			print(f"Skipping {site}")
+			continue
+		print(f"{site}: {masterresults[site]['URL']}")
 		for i in range(0,len(masterresults[site]['URL'])):
 			#CHECKS IF HTTPS
 			if 'https' in masterresults[site]['URL'][i]:
@@ -179,24 +190,25 @@ def main():
 						part = part.rstrip().lstrip().lower()
 
 						if "preload" in part:
-							#If it claims preload, we check if it or subdomains are in official preload list
-							if checkPreload(preloadDict,domain=masterresults[site]['URL'][i]):
-								#Preload without includeSubdomains
-								if "include" not in masterresults[site]['HSTS'][i]:
-									log(f"[!] Misconfig Found. {masterresults[site]['URL'][i]} returns preload with no includeSubdomains ")
-									vulns['preloadButNoIncludeSubDomains'].append(masterresults[site]['URL'][i])
-								#Story checks out.  Site claims preload and is in preload list
-								else:
-									preload += 1
+	# Future addition
+	# #If it claims preload, we check if it or subdomains are in official preload list
+	# if checkPreload(preloadDict,domain=masterresults[site]['URL'][i]):
+							#Preload without includeSubdomains
+							if "include" not in masterresults[site]['HSTS'][i]:
+								log(f"[!] Misconfig Found. {masterresults[site]['URL'][i]} returns preload with no includeSubdomains ")
+								vulns['preloadButNoIncludeSubDomains'].append(masterresults[site]['URL'][i])
+							#Story checks out.  Site claims preload and is in preload list
 							else:
-								log(f"[!] Misconfig Found. {masterresults[site]['URL'][i]} returns preload but is not preloaded.")
-								vulns['preloadButNotPreloaded'].append(masterresults[site]['URL'][i])
+								preload += 1
+# else:
+	# 	log(f"[!] Misconfig Found. {masterresults[site]['URL'][i]} returns preload but is not preloaded.")
+	# 	vulns['preloadButNotPreloaded'].append(masterresults[site]['URL'][i])
 						#Case E - max-age directive is super low < 2592000
 						if "max-age" in part:
 							age = part.split('=')[1]
 							if int(age) < 2592000:
 								log(f"[!] Misconfig Found. max-age directive is less than 30 days: max-age={age}  ")
-								vulns['preloadButNoIncludeSubDomains'].append(masterresults[site]['URL'][i])
+								vulns['maxAgeTooSmall'].append(masterresults[site]['URL'][i])
 
 			#HTTP
 			else:
@@ -240,8 +252,7 @@ def main():
 		if eventualHSTS:
 			eventualHSTSCount += 1
 
-	for vuln in vulns:
-		print(f"{vuln}: {vulns[vuln]}")
+	printVulns(vulns)
 
 
 
