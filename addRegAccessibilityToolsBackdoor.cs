@@ -37,7 +37,7 @@ namespace regAdd
             //Get-Item "HKLM:\\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\osk.exe"
             //Lock computer & open osk to see if it worked.
             Console.WriteLine($"Deleting SubKey: {backdoor}");
-            //removeReg(backdoor);
+            removeReg(backdoor);
             newkey.Close();
 
 
