@@ -1,7 +1,7 @@
 #!/bin/bash
-export linkblobg=$(curl https://www.musicforprogramming.net | grep -A1  'id="episodes" class="multi-column"' | grep href)
+export linkblob=$(curl https://www.musicforprogramming.net | grep -A1  'id="episodes" class="multi-column"' | grep href)
 export sep='href="'
-links=$(printf '%s\n' "${linkblob//$sep/$'\n'}" | cut -d '"' -f1)
+links=$(printf '%s\n' "${linkblob//$sep/$'\n'}" | cut -d '"' -f1 | grep -v '<a')
 for link in $links
 do
     export mp3link=$(curl "https://www.musicforprogramming.net$link" | grep mp3 | cut -d '"' -f2 | head -n 1)    
