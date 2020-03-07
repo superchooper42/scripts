@@ -8,6 +8,9 @@ pdf = file.read()
 stream = re.compile(rb'.*?FlateDecode.*?stream(.*?)endstream', re.S)
 objects = stream.findall(pdf)
 #Most times, the object was stored as the last object.
-last = objects.pop()
-mydata = zlib.decompress(last.strip(b'\r\n'))
-print(str(mydata,'utf-8'))
+count = 0 
+while len(objects) > 0:
+	last = objects.pop()
+	mydata = zlib.decompress(last.strip(b'\r\n'))
+	print(str(mydata,'utf-8'))
+	sys.exit(0)  #Remove this if the object isn't the last one.

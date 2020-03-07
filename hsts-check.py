@@ -118,7 +118,7 @@ def printVulns(vulns):
 def main():
 	# Open CSV file. File contains list of top X domains to scan.
 	# three,ten,hundred,1k,10k,100k,million
-	csvfile = open('C:\\Temp\\majestic_hundred.csv','r')
+	csvfile = open('C:\\Temp\\majestic_100k.csv','r')
 	csvreader = csv.reader(csvfile)
 	
 	#open JSON preload file
@@ -133,6 +133,7 @@ def main():
 	
 	# This stub makes all the requests and gathers the information
 	for row in csvreader:
+		print(f"Site # {row[0]}",end='')
 		if row[2] != "Domain":
 			target = row[2]
 			doRequests(target)
