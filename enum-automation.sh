@@ -95,7 +95,8 @@ for port in ${ftpPorts[@]}; do
 done #Save output of this into file.
 rm ftptest.txt
 #----------------------------------------------------------------------
-
+echo -e "[*] Starting nmap NSE scan"
+nmap -p- -A -oA nmap/$target-NSE -Pn -T5 -sV -v0 $target > /dev/null 2>&1
 
 #Examine https certificate
 #echo | openssl s_client -showcerts -servername 192.168.0.116 -connect 192.168.0.116:443 2>/dev/null | openssl x509 -inform pem -noout -text
