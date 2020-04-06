@@ -27,7 +27,7 @@ echo -e "Using wordlists from: $directory"
 
 function dir_cmd(){
 	#Not the cleanest way of handling output, but it works.
-	dirb $1 $2 -S -w -X '.html','.php','','.bak','.txt','~' | tr -d '-' | egrep -v "GENERATED|WORDLIST_FILES|START_TIME|DOWNLOADED|END_TIME" > /tmp/dirbtmp.txt
+	dirb $1 $2 -r -S -w -X '.html','.php','','.bak','.txt','~' | tr -d '-' | egrep -v "GENERATED|WORDLIST_FILES|START_TIME|DOWNLOADED|END_TIME" > /tmp/dirbtmp.txt
 	export OLDIFS=$IFS
 	export IFS=$'\n'
 	set -f
