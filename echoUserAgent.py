@@ -26,7 +26,7 @@ def handle_echo(client_connection, client_address):
 						print(ua)
 					except:
 						pass
-				client_connection.send("HTTP/1.1 200 OK\n\nNothingToSeeHere\n\n\n\n)
+				client_connection.send("HTTP/1.1 200 OK\n\nNothingToSeeHere\n\n\n\n")
 	# Timeout and close connection after 30s of inactivity
 	except socket.timeout:
 		print('{} timed out'.format(client_address))
