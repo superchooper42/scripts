@@ -1,4 +1,12 @@
 #!/bin/bash
+#Three arguments: domain controller IP, valid domain username, valid password
+#Automating routine enumeration tasks.
+#Depends on enum-automation.sh
+echo Initial Domain Enumeration Script
+echo by Cary Hooper @nopantrootdance
+#TODO:
+#  scan for hosts not in the domain
+
 #Check for 3 args
 if [ $# != 3 ]
 then
@@ -72,4 +80,3 @@ do
 	cd ../
 	echo Finished scanning $hostname at $ip
 done
-
