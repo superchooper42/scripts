@@ -49,7 +49,7 @@ for computer in computers
 do
 	echo "\t$computer"
 done
-echo --------
+echo ----------------
 users=$(cat $domain/domain_users.grep  | grep -v sAMAccountName | awk '{print $1}')
 echo Users in $domain:
 for user in users
@@ -79,4 +79,5 @@ do
 	$enumpath $ip | egrep -v "Initial Host|nopantrootdance" 
 	cd ../
 	echo Finished scanning $hostname at $ip
+	echo ----------------
 done
