@@ -5,10 +5,8 @@
 echo Initial Host Enumeration Script
 echo by Cary Hooper @nopantrootdance
 #TODO
-#echo all open ports with nmap sV service detection
 #can we extract hostname from nmap scan? 
 #support for openSSL certificate parsing
-#smb checks... 1) enumerate with enum4linux 2) check for anonymous read 2) check for anonymous write
 #smtp checks - is login allowed? can we VRFY users?
 #UDP nmap scan... at least top 5 UDP services
 #tftp checks - any files available to download?  can we write files?
@@ -22,16 +20,18 @@ then
 fi
 target=$1
 #Make output directory if it doesn't exist.
-#Todo - more graceful check of whether the dir exists.
-mkdir nmap > /dev/null 2>&1
+if [ ! -d nmap ]
+then
+	mkdir nmap > /dev/null 2>&1
+fi
 #Do the nmap scan
 echo -e "\t[*] Beginning nmap scan of target."
-nmap -p- -oA nmap/$target -Pn -T5 -sV -v0 $target > /dev/null 2>&1
+nmap -p- -oA nmap/$target -Pn -T5 -sV -v0 $target --host-timeout 99999m > /dev/null 2>&1
 
 #----------------------------------------------------------------------
 #Check for http(s)
 httpPorts=()
-count=$(cat nmap/$target.nmap | egrep " http | ssl/http | https " | grep -v "incorrect results at " | wc -l)
+count=$(cat nmap/$target.nmap | egrep " http | ssl/http | https " | grep -v "incorrect results at " | egrep -v "593|598[56]|470{2}[0-9]|491{2}[0-9]" | wc -l)
 if [ $count -ne 0 ]
 then
 	httpflag=1
@@ -70,7 +70,7 @@ then
 	while read -r line; do
 		port=$(echo -n "$line" | cut -d '/' -f1)
 		echo "[!] Port $port is hosting an ftp service"
-		httpPorts+=("$port")
+		ftpPorts+=("$port")
 
 	done <<< "$query"
 else
@@ -95,11 +95,69 @@ for port in ${ftpPorts[@]}; do
 done #Save output of this into file.
 rm ftptest.txt
 #----------------------------------------------------------------------
+#Check for smb
+#if smbmap isn't installed, install it.
+install_smbmap () {
+	type smbmap >/dev/null 2>&1
+	if [ $? != 0 ]
+	then
+		echo "[!] smbmap not found... installing"
+		sudo git clone https://github.com/ShawnDEvans/smbmap /opt/smbmap
+		sudo pip install -r /opt/smbmap/requirements.txt
+		sudo ln -s /opt/smbmap/smbmap.py /usr/bin/smbmap
+	fi
+}
 
+#if enum4linux isn't installed, install it
+install_enum4linux () {
+	type enum4linux >/dev/null 2>&1
+	if [ $? != 0 ]
+	then
+		echo "[!] enum4linux not found... installing"
+		sudo git clone https://github.com/portcullislabs/enum4linux /opt/enum4linx
+		sudo ln -s /opt/enum4linux/enum4linux.pl /usr/bin/enum4linux
+	fi
+}
+
+
+#checks for open SMB services and enumerates them
+smbPorts=()
+count=$(cat nmap/$target.nmap | egrep " netbios-ssn " | grep -v "139" | wc -l)
+if [ $count -ne 0 ]
+then
+	install_smbmap
+	install_enum4linux
+	smbflag=1
+	echo "[!] Detected SMB"
+	query=$(cat nmap/$target.nmap | egrep " netbios-ssn | microsoft-ds? " )
+	while read -r line; do
+		port=$(echo -n "$line" | cut -d '/' -f1)
+		echo "[!] Port $port is hosting an SMB service"
+		smbPorts+=("$port")
+
+	done <<< "$query"
+else
+	smbflag=0
+fi
+#Do smb enumeration things
+for port in ${smbPorts[@]}; do
+	#Run smbmap
+	smbmap -H $target -P $port 2>&1 > smbmap.txt
+	#Run enum4linux
+	enum4linux $target 2>&1 > enum4linux.txt
+done
+
+#----------------------------------------------------------------------
+echo -e "[*] Starting nmap NSE scan"
+nmap -p- -A -oA nmap/$target-NSE -Pn -T5 -sV -v0 $target --host-timeout 99999m > /dev/null 2>&1
+
+echo -e "[*] Starting nmap UDP scan"
+nmap -p 53,69,161 -sUV -oA nmap/$target-UDP -Pn -T5 -v0 $target --host-timeout 99999m > /dev/null 2>&1
 
 #Examine https certificate
 #echo | openssl s_client -showcerts -servername 192.168.0.116 -connect 192.168.0.116:443 2>/dev/null | openssl x509 -inform pem -noout -text
 
+cat nmap/$target.nmap | grep open
 echo -e '\nProgram Complete\n'
 
 #Iterate over newline-separated variable
