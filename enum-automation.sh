@@ -134,6 +134,7 @@ then
 		port=$(echo -n "$line" | cut -d '/' -f1)
 		echo "[!] Port $port is hosting an SMB service"
 		smbPorts+=("$port")
+		echo smbPorts[@]
 
 	done <<< "$query"
 else

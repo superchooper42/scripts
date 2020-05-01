@@ -2,8 +2,14 @@
 from Crypto.Cipher import AES
 import base64
 
-key = "0d43e09e2fcc8214e9e2d4d31cbde907ffa226d988054299467d3a9a6994a831"
-ccb64 = "2edEX8jblFU0IxXHnNAdPbDZgsx1imLa7he43lk7px0bKVLQknPaABEpR8mo2kwn"
+key = "8d127684cbc37c17616d806cf50473cc"
+ccb64 = "5UJiFctbmgbDoLXmpL12mkno8HT4Lv8dlat8FxR2GOc="
+#iv = "\x00" * 16 
+
+print(AES.new(bytes.fromhex(key), AES.MODE_ECB).decrypt(base64.b64decode(ccb64)))
+
+key = "8d127684cbc37c17616d806cf50473cc"
+ccb64 = "5UJiFctbmgbDoLXmpL12mkno8HT4Lv8dlat8FxR2GOc="
 iv = "\x00" * 16 
 
 print(AES.new(bytes.fromhex(key), AES.MODE_CBC, iv).decrypt(base64.b64decode(ccb64)))
