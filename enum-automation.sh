@@ -102,9 +102,9 @@ install_smbmap () {
 	if [ $? != 0 ]
 	then
 		echo "[!] smbmap not found... installing"
-		sudo git clone https://github.com/ShawnDEvans/smbmap /opt/smbmap
-		sudo pip install -r /opt/smbmap/requirements.txt
-		sudo ln -s /opt/smbmap/smbmap.py /usr/bin/smbmap
+		git clone https://github.com/ShawnDEvans/smbmap /opt/smbmap
+		pip install -r /opt/smbmap/requirements.txt
+		ln -s /opt/smbmap/smbmap.py /usr/bin/smbmap
 	fi
 }
 
@@ -114,8 +114,8 @@ install_enum4linux () {
 	if [ $? != 0 ]
 	then
 		echo "[!] enum4linux not found... installing"
-		sudo git clone https://github.com/portcullislabs/enum4linux /opt/enum4linx
-		sudo ln -s /opt/enum4linux/enum4linux.pl /usr/bin/enum4linux
+		git clone https://github.com/portcullislabs/enum4linux /opt/enum4linx
+		ln -s /opt/enum4linux/enum4linux.pl /usr/bin/enum4linux
 	fi
 }
 
