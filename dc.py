@@ -12,5 +12,5 @@ count = 0
 while len(objects) > 0:
 	last = objects.pop()
 	mydata = zlib.decompress(last.strip(b'\r\n'))
-	print(str(mydata,'utf-8'))
-	sys.exit(0)  #Remove this if the object isn't the last one.
+	print(str(mydata, errors='replace'))
+	#sys.exit(0)  #Remove this if the object isn't the last one.
