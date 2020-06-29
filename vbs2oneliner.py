@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-#Created by Cary Hooper
-#Automating mundane tasks for AWAE.  
-#Turns any VBS script into a "one-liner".
 
 filename = "webshells/conf-os-info.vbs"
 newfilename = filename.rsplit(".",1)[0] + ".oneliner." + filename.rsplit(".",1)[1]; 

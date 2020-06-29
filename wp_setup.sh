@@ -1,6 +1,5 @@
 #!/bin/bash
 #Script to stand up a Wordpress instance
-shopt -s globstar
 remove=""
 gethelp(){
 	echo "Usage: "
@@ -43,12 +42,11 @@ setup_wp(){
 		rm /tmp/latest.tar.gz
 	fi
 	wget https://wordpress.org/latest.tar.gz -O /tmp/latest.tar.gz
-	cd /tmp
-	tar -xvzf /tmp/latest.tar.gz 
-	for i in $(ls /tmp/wordpress); do cp -r $i /var/www/melanievettimattam.com/; done
-	rm -rf /tmp/wordpress/
-	chown -R www-data:www-data "/var/www/$domain/"
-	chmod -R 755 "/var/www/$domain/"
+	sudo tar -C /var/www/$domain -xvzf /tmp/latest.tar.gz
+	sudo mv /var/www/$domain/wordpress/* /var/www/$domain/
+	sudo rm -rf /var/www/$domain/wordpress/
+	sudo chown -R www-data:www-data "/var/www/$domain/"
+	sudo chmod -R 755 "/var/www/$domain/"
 }
 
 config_apache(){
@@ -58,7 +56,7 @@ config_apache(){
 	##Copy config files
 	sudo cp /etc/apache2/sites-available/jvetti.tk.conf /etc/apache2/sites-available/$domain.conf 
 	sudo cp /etc/apache2/sites-available/jvetti.tk-ssl.conf /etc/apache2/sites-available/$domain-ssl.conf 
-	#Replace domain in config files
+	#Replace domain in config files using jvetti.tk as a template
 	sed -i "s/jvetti.tk/$domain/g" /etc/apache2/sites-available/$domain.conf 
 	sed -i "s/jvetti.tk/$domain/g" /etc/apache2/sites-available/$domain-ssl.conf 
 	#Link sites-enabled to sites-available
@@ -97,19 +95,26 @@ remove_db(){
 	rm /tmp/batch.sql
 }
 
-while getopts "h:r:d:" arg; do
+while getopts ":h:r:d:" arg; do
 	case ${arg} in
-		h ) gethelp ;;
-		d ) export domain=$OPTARG ;;
-		r ) remove="true"  ;;
+		h ) 	gethelp ;;
+		d ) 	export domain=$OPTARG ;
+			unset remove;;
+		r ) 	remove=true;
+			export domain=$OPTARG;;
 		\? ) gethelp;;
 	esac
 done
 
+if [ "$EUID" -ne 0 ]
+  then echo "Please run as root"
+  exit
+fi
+
 #Update the config
 apt_update 2>&1 /dev/null
 
-if [ $remove -eq "true" ]
+if [ $remove ]
 then
 	#Removes site/domain from computer
 	echo "Removing $domain"
@@ -131,7 +136,7 @@ else
 	#Prepare DB
 	prepare_db
 	#At this point, complete install through the web interface.
-	read -p "Navigate to https://$domain to complete WP Setup.  Press enter when complete."
+	read -p "Navigate to https://$domain to complete WP Setup (DB=$database_name).  Press enter when complete."
 	#Hardening
 	sudo chown root:www-data /var/www/$domain/wp-config.php
 	sudo chmod 440 /var/www/$domain/wp-config.php
