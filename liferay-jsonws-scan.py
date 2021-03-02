@@ -9,7 +9,7 @@ warnings.filterwarnings("ignore")
 
 
 def do_get(params):
-	baseurl = "https://rschlib1.ml.com/api/jsonws"
+	baseurl = "https://example.myliferayhost.com/api/jsonws"
 	proxies = {"http":"http://127.0.0.1:8080","https":"http://127.0.0.1:8080"}
 	#proxies = {}
 	try:
